@@ -20,6 +20,7 @@ import java.util.Map;
 public final class ChestLootAlertPlugin extends JavaPlugin {
 
     public static final String RECEIVE_PERMISSION = "chestlootalert.receive";
+    public static final String ADMIN_PERMISSION = "chestlootalert.admin";
 
     private static final Map<String, String> DEFAULT_MESSAGES = Map.of(
             "item-taken", "&c[ALERT] &f{player} wyjął {amount}x {item} ze skrzyni gracza {owner}",
@@ -38,6 +39,7 @@ public final class ChestLootAlertPlugin extends JavaPlugin {
     @Override
     public void onEnable() {
         saveDefaultConfig();
+        reloadConfig();
         loadSettings();
 
         getServer().getPluginManager().registerEvents(new ChestListener(this), this);
@@ -62,8 +64,15 @@ public final class ChestLootAlertPlugin extends JavaPlugin {
         }
 
         if (args.length == 1 && args[0].equalsIgnoreCase("reload")) {
+            if (!sender.hasPermission(ADMIN_PERMISSION)) {
+                sender.sendMessage(Component.text("You do not have permission to reload ChestLootAlert."));
+                return true;
+            }
+
+            saveOwners();
             reloadConfig();
             loadSettings();
+            restartAutosaveTask();
             sender.sendMessage(Component.text("ChestLootAlert configuration reloaded."));
             return true;
         }
@@ -73,8 +82,6 @@ public final class ChestLootAlertPlugin extends JavaPlugin {
     }
 
     private void loadSettings() {
-        reloadConfig();
-
         chestOpenAlertsEnabled = getConfig().getBoolean("alerts.chest-open", true);
         chestBreakAlertsEnabled = getConfig().getBoolean("alerts.chest-break", true);
         discordWebhook = new DiscordWebhook(this, getConfig().getString("webhook-url", ""));
@@ -105,6 +112,14 @@ public final class ChestLootAlertPlugin extends JavaPlugin {
 
         autosaveTask = getServer().getScheduler().runTaskTimer(this, this::saveOwners, intervalTicks, intervalTicks);
         getLogger().info("Container ownership autosave every " + minutes + " minute(s).");
+    }
+
+    private void restartAutosaveTask() {
+        if (autosaveTask != null) {
+            autosaveTask.cancel();
+            autosaveTask = null;
+        }
+        startAutosaveTask();
     }
 
     /** Persists ownership only; webhook-url and alerts are left untouched. */

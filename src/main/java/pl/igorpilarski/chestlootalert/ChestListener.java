@@ -13,9 +13,12 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockBurnEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
@@ -46,7 +49,7 @@ public final class ChestListener implements Listener {
         this.plugin = plugin;
     }
 
-    @EventHandler
+    @EventHandler(ignoreCancelled = true)
     public void onContainerPlace(BlockPlaceEvent event) {
         Block block = event.getBlockPlaced();
         if (!ContainerType.isTracked(block.getType())) {
@@ -61,7 +64,7 @@ public final class ChestListener implements Listener {
                 registerDoubleChestHalves(block, ownerId, playerName));
     }
 
-    @EventHandler
+    @EventHandler(ignoreCancelled = true)
     public void onContainerBreak(BlockBreakEvent event) {
         Block block = event.getBlock();
         if (!ContainerType.isTracked(block.getType())) {
@@ -98,7 +101,31 @@ public final class ChestListener implements Listener {
         ));
     }
 
+    @EventHandler(ignoreCancelled = true)
+    public void onExplosion(EntityExplodeEvent event) {
+        OwnerRepository owners = plugin.getOwnerRepository();
+        for (Block block : event.blockList()) {
+            if (ContainerType.isTracked(block.getType())) {
+                clearOwnership(block, "explosion", owners);
+            }
+        }
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onContainerBurn(BlockBurnEvent event) {
+        Block block = event.getBlock();
+        if (!ContainerType.isTracked(block.getType())) {
+            return;
+        }
+        clearOwnership(block, "fire", plugin.getOwnerRepository());
+    }
+
     @EventHandler
+    public void onPlayerQuit(PlayerQuitEvent event) {
+        openSessions.remove(event.getPlayer().getUniqueId());
+    }
+
+    @EventHandler(ignoreCancelled = true)
     public void onContainerClick(InventoryClickEvent event) {
         Inventory topInventory = event.getView().getTopInventory();
         if (!isTrackedContainerInventory(topInventory)) {

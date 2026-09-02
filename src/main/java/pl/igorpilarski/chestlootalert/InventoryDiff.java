@@ -4,12 +4,15 @@ import org.bukkit.Material;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
 /**
- * Snapshots a container's contents and compares two snapshots slot-by-slot to
- * find which items were taken out and which were added.
+ * Snapshots a container's contents and compares totals per material to find
+ * what was taken out and what was added. Using inventory-wide totals avoids
+ * false alerts when items are merely rearranged between slots.
  */
 public final class InventoryDiff {
 
@@ -38,39 +41,49 @@ public final class InventoryDiff {
 
     /** Compares a "before" snapshot against the current state of {@code after}. */
     public static Result compare(Map<Integer, ItemStack> before, Inventory after) {
+        Map<Material, Integer> beforeTotals = materialTotals(before);
+        Map<Material, Integer> afterTotals = materialTotals(after);
+
         Map<Material, Integer> taken = new LinkedHashMap<>();
         Map<Material, Integer> added = new LinkedHashMap<>();
 
-        for (int slot = 0; slot < after.getSize(); slot++) {
-            diffSlot(before.get(slot), after.getItem(slot), taken, added);
+        Set<Material> materials = new HashSet<>();
+        materials.addAll(beforeTotals.keySet());
+        materials.addAll(afterTotals.keySet());
+
+        for (Material material : materials) {
+            int beforeAmount = beforeTotals.getOrDefault(material, 0);
+            int afterAmount = afterTotals.getOrDefault(material, 0);
+            if (afterAmount > beforeAmount) {
+                added.put(material, afterAmount - beforeAmount);
+            } else if (beforeAmount > afterAmount) {
+                taken.put(material, beforeAmount - afterAmount);
+            }
         }
 
         return new Result(taken, added);
     }
 
-    private static void diffSlot(ItemStack beforeItem, ItemStack afterItem,
-                                  Map<Material, Integer> taken, Map<Material, Integer> added) {
-        int beforeAmount = beforeItem == null ? 0 : beforeItem.getAmount();
-        int afterAmount = afterItem == null ? 0 : afterItem.getAmount();
-        Material beforeType = beforeItem == null ? null : beforeItem.getType();
-        Material afterType = afterItem == null ? null : afterItem.getType();
-
-        if (beforeType == afterType) {
-            if (afterAmount > beforeAmount) {
-                added.merge(afterType, afterAmount - beforeAmount, Integer::sum);
-            } else if (beforeAmount > afterAmount) {
-                taken.merge(beforeType, beforeAmount - afterAmount, Integer::sum);
+    private static Map<Material, Integer> materialTotals(Map<Integer, ItemStack> slots) {
+        Map<Material, Integer> totals = new LinkedHashMap<>();
+        for (ItemStack item : slots.values()) {
+            if (item == null || item.getType() == Material.AIR) {
+                continue;
             }
-            return;
+            totals.merge(item.getType(), item.getAmount(), Integer::sum);
         }
+        return totals;
+    }
 
-        // The slot's item type itself changed (e.g. swapped for a different item) —
-        // count the old stack as fully taken and the new one as fully added.
-        if (beforeType != null) {
-            taken.merge(beforeType, beforeAmount, Integer::sum);
+    private static Map<Material, Integer> materialTotals(Inventory inventory) {
+        Map<Material, Integer> totals = new LinkedHashMap<>();
+        for (int slot = 0; slot < inventory.getSize(); slot++) {
+            ItemStack item = inventory.getItem(slot);
+            if (item == null || item.getType() == Material.AIR) {
+                continue;
+            }
+            totals.merge(item.getType(), item.getAmount(), Integer::sum);
         }
-        if (afterType != null) {
-            added.merge(afterType, afterAmount, Integer::sum);
-        }
+        return totals;
     }
 }
