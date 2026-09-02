@@ -63,16 +63,35 @@ public final class OwnerRepository {
         }
     }
 
-    public void setOwner(Location location, UUID owner) {
-        owners.put(keyFor(location), owner);
+    public void setOwner(Location location, UUID owner, String placedBy) {
+        String key = keyFor(location);
+        UUID previous = owners.put(key, owner);
+        if (owner.equals(previous)) {
+            return;
+        }
+
+        if (previous == null) {
+            logger.info("Registered owner " + owner + " for container at " + key
+                    + " (placed by " + placedBy + ", total: " + owners.size() + ")");
+        } else {
+            logger.info("Changed container owner at " + key + " from " + previous + " to " + owner
+                    + " (placed by " + placedBy + ", total: " + owners.size() + ")");
+        }
     }
 
     public UUID getOwner(Location location) {
         return owners.get(keyFor(location));
     }
 
-    public void removeOwner(Location location) {
-        owners.remove(keyFor(location));
+    public void removeOwner(Location location, String brokenBy) {
+        String key = keyFor(location);
+        UUID removed = owners.remove(key);
+        if (removed == null) {
+            return;
+        }
+
+        logger.info("Removed owner " + removed + " for container at " + key
+                + " (broken by " + brokenBy + ", total: " + owners.size() + ")");
     }
 
     public int size() {

@@ -5,6 +5,9 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.block.Block;
+import org.bukkit.block.BlockState;
+import org.bukkit.block.Chest;
+import org.bukkit.block.DoubleChest;
 import org.bukkit.entity.HumanEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -14,6 +17,7 @@ import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.Map;
@@ -48,7 +52,13 @@ public final class ChestListener implements Listener {
         if (!ContainerType.isTracked(block.getType())) {
             return;
         }
-        plugin.getOwnerRepository().setOwner(block.getLocation(), event.getPlayer().getUniqueId());
+        UUID ownerId = event.getPlayer().getUniqueId();
+        String playerName = event.getPlayer().getName();
+        plugin.getOwnerRepository().setOwner(block.getLocation(), ownerId, playerName);
+
+        // Double chests are two blocks — the linked half may not fire its own place event.
+        plugin.getServer().getScheduler().runTask(plugin, () ->
+                registerDoubleChestHalves(block, ownerId, playerName));
     }
 
     @EventHandler
@@ -60,15 +70,22 @@ public final class ChestListener implements Listener {
 
         OwnerRepository owners = plugin.getOwnerRepository();
         Location location = block.getLocation();
-        UUID ownerId = owners.getOwner(location);
+        UUID ownerId = resolveOwner(block, owners);
         if (ownerId == null) {
+            plugin.getLogger().info("Broken tracked container at " + formatLocation(location)
+                    + " has no registered owner — break alert skipped.");
             return;
         }
 
         Player breaker = event.getPlayer();
-        owners.removeOwner(location);
+        clearOwnership(block, breaker.getName(), owners);
 
-        if (ownerId.equals(breaker.getUniqueId()) || !plugin.isChestBreakAlertsEnabled()) {
+        if (ownerId.equals(breaker.getUniqueId())) {
+            plugin.getLogger().info("Broken tracked container at " + formatLocation(location)
+                    + " was destroyed by its owner — break alert skipped.");
+            return;
+        }
+        if (!plugin.isChestBreakAlertsEnabled()) {
             return;
         }
 
@@ -106,7 +123,7 @@ public final class ChestListener implements Listener {
             return;
         }
 
-        UUID ownerId = plugin.getOwnerRepository().getOwner(location);
+        UUID ownerId = resolveOwner(closedInventory.getLocation().getBlock(), plugin.getOwnerRepository());
         if (ownerId == null || ownerId.equals(player.getUniqueId())) {
             return;
         }
@@ -146,5 +163,86 @@ public final class ChestListener implements Listener {
 
     private String prettify(Material material) {
         return material.name().toLowerCase().replace('_', ' ');
+    }
+
+    private UUID resolveOwner(Block block, OwnerRepository owners) {
+        UUID owner = owners.getOwner(block.getLocation());
+        if (owner != null) {
+            return owner;
+        }
+
+        BlockState state = block.getState(false);
+        if (!(state instanceof Chest chest)) {
+            return null;
+        }
+
+        InventoryHolder holder = chest.getInventory().getHolder();
+        if (!(holder instanceof DoubleChest doubleChest)) {
+            return null;
+        }
+
+        owner = ownerFromHalf(doubleChest.getLeftSide(), owners);
+        if (owner != null) {
+            return owner;
+        }
+        return ownerFromHalf(doubleChest.getRightSide(), owners);
+    }
+
+    private UUID ownerFromHalf(InventoryHolder half, OwnerRepository owners) {
+        if (half instanceof Chest chest) {
+            return owners.getOwner(chest.getLocation());
+        }
+        return null;
+    }
+
+    private void registerDoubleChestHalves(Block block, UUID ownerId, String placedBy) {
+        BlockState state = block.getState(false);
+        if (!(state instanceof Chest chest)) {
+            return;
+        }
+
+        InventoryHolder holder = chest.getInventory().getHolder();
+        if (!(holder instanceof DoubleChest doubleChest)) {
+            return;
+        }
+
+        setOwnerOnHalf(doubleChest.getLeftSide(), ownerId, placedBy);
+        setOwnerOnHalf(doubleChest.getRightSide(), ownerId, placedBy);
+    }
+
+    private void setOwnerOnHalf(InventoryHolder half, UUID ownerId, String placedBy) {
+        if (half instanceof Chest chest) {
+            plugin.getOwnerRepository().setOwner(chest.getLocation(), ownerId, placedBy);
+        }
+    }
+
+    private void clearOwnership(Block block, String brokenBy, OwnerRepository owners) {
+        owners.removeOwner(block.getLocation(), brokenBy);
+
+        BlockState state = block.getState(false);
+        if (!(state instanceof Chest chest)) {
+            return;
+        }
+
+        InventoryHolder holder = chest.getInventory().getHolder();
+        if (!(holder instanceof DoubleChest doubleChest)) {
+            return;
+        }
+
+        removeOwnerOnHalf(doubleChest.getLeftSide(), brokenBy, owners);
+        removeOwnerOnHalf(doubleChest.getRightSide(), brokenBy, owners);
+    }
+
+    private void removeOwnerOnHalf(InventoryHolder half, String brokenBy, OwnerRepository owners) {
+        if (half instanceof Chest chest) {
+            owners.removeOwner(chest.getLocation(), brokenBy);
+        }
+    }
+
+    private String formatLocation(Location location) {
+        return location.getWorld().getName() + ":" +
+                location.getBlockX() + ":" +
+                location.getBlockY() + ":" +
+                location.getBlockZ();
     }
 }
