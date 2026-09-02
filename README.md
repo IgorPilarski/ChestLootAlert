@@ -4,8 +4,8 @@ Paper plugin that alerts the server when someone loots or modifies another playe
 
 ## Requirements
 
-- Paper 26.2+
-- Java 21
+- Paper 26.2+ server
+- Java 25+ to build (Paper API 26.2; JDK 21 is used as a fallback by the build script)
 
 ## Features
 
@@ -18,11 +18,13 @@ Paper plugin that alerts the server when someone loots or modifies another playe
 
 ## Build
 
-```bash
-mvn package
+No global Maven install required — the repo includes a Maven Wrapper.
+
+```powershell
+.\build.ps1 package
 ```
 
-The plugin JAR is produced at `target/ChestLootAlert.jar`.
+Output: `target/ChestLootAlert.jar` — copy it into your server's `plugins/` folder.
 
 ## Configuration
 
