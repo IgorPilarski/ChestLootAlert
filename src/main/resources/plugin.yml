@@ -1,0 +1,21 @@
+name: ChestLootAlert
+version: 1.0.0
+main: pl.igorpilarski.chestlootalert.ChestLootAlertPlugin
+api-version: '26.2'
+description: Alerts when non-owners take, add, or break tracked containers, listing exact items and counts.
+author: IgorPilarski
+website: https://github.com/IgorPilarski/ChestLootAlert
+
+commands:
+  chestlootalert:
+    description: Manage the ChestLootAlert plugin.
+    usage: /<command> reload
+    permission: chestlootalert.admin
+
+permissions:
+  chestlootalert.receive:
+    description: Receive chat alerts about looted or broken containers.
+    default: true
+  chestlootalert.admin:
+    description: Reload the ChestLootAlert configuration.
+    default: op

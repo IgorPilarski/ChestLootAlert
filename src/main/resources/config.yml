@@ -1,0 +1,23 @@
+# Discord webhook URL. Leave empty ("") to disable Discord notifications.
+webhook-url: ""
+
+# How often container ownership is saved to this file, in minutes (minimum 1).
+# Ownership is also always saved when the plugin is disabled.
+autosave-interval-minutes: 5
+
+alerts:
+  # Alert (chat + Discord) when a non-owner takes or adds items in a tracked container.
+  chest-open: true
+  # Alert (chat + Discord) when a non-owner breaks a tracked container.
+  chest-break: true
+
+# Message templates. Supports legacy '&' color codes and placeholders:
+# {player}, {owner}, {amount}, {item}, {x}, {y}, {z}
+messages:
+  item-taken: "&c[ALERT] &f{player} wyjął {amount}x {item} ze skrzyni gracza {owner}"
+  item-added: "&a[ALERT] &f{player} włożył {amount}x {item} do skrzyni gracza {owner}"
+  chest-broken: "&c[ALERT] &f{player} zniszczył skrzynię gracza {owner} na kordach: {x} {y} {z}"
+
+# Container ownership map. Key format: "world:x:y:z" -> player UUID.
+# Managed automatically by the plugin — do not edit by hand while the server is running.
+owners: {}
